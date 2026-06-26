@@ -12,8 +12,9 @@ os **MCP servers** e as **settings**.
 ## Instalação rápida
 
 ```bash
-# 1) extrai a pasta e entra nela
-cd claude-config-share
+# 1) clona o repo
+git clone https://github.com/SoldergG/claude-code-config.git
+cd claude-code-config
 
 # 2) corre o instalador (copia skills + statusline + settings)
 bash install.sh
