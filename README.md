@@ -4,8 +4,7 @@ Tudo o que precisas para teres o mesmo setup: a **barra de estado** (aquilo em b
 terminal com o modelo, % de contexto, branch, rate limits), as **skills**, os **plugins**,
 os **MCP servers** e as **settings**.
 
-> Feito para **macOS**. A statusline usa comandos do macOS (`date -j`, `security`).
-> No Linux há partes que precisam de ajuste.
+Funciona em **macOS**, **Linux**, **WSL** e **Git Bash (Windows)**.
 
 ---
 
@@ -22,10 +21,13 @@ bash install.sh
 
 Depois faz os **passos manuais** em baixo (plugins + MCP). No fim, **reinicia o Claude Code**.
 
-Pré-requisito: `jq` (a statusline não funciona sem ele).
-```bash
-brew install jq
-```
+### Pré-requisitos
+
+| Plataforma | Pré-requisito |
+|---|---|
+| macOS | `brew install jq` |
+| Linux / WSL | `sudo apt install jq curl` (ou equivalente) |
+| Git Bash (Windows) | instala [jq para Windows](https://jqlang.github.io/jq/download/) + [curl](https://curl.se/windows/) |
 
 ---
 
@@ -51,17 +53,40 @@ current ●●●●●●●○○○  76% ⟳ 9:30pm
 weekly  ●●●●●●○○○○  60% ⟳ jun 28, 6:00am
 ```
 
-A `statusline.sh` mostra, **linha 1**: modelo · % de contexto usado · pasta `(branch*)` (o `*`
-quer dizer alterações por commitar) · duração da sessão · nível de esforço.
-**Linha 2/3**: os teus *rate limits* — `current` (janela de 5h) e `weekly` (7 dias), com a hora
-de reset. Vai buscar isto à API da Anthropic com o teu próprio token OAuth (lê-o do Keychain do
-macOS) e faz cache 60s em `/tmp/claude`. Não há nenhum segredo dentro do script — usa o login
-de cada um.
+**Linha 1:** modelo · % de contexto usado · pasta `(branch*)` (`*` = alterações por commitar)
+· duração da sessão · nível de esforço.
+
+**Linha 2/3:** os teus *rate limits* — `current` (janela de 5h) e `weekly` (7 dias), com a
+hora de reset. Vai buscar isto à API da Anthropic com o teu próprio token OAuth e faz cache
+60s em `/tmp/claude`. Não há nenhum segredo dentro do script — usa o login de cada um.
 
 A ligação no `settings.json` é:
 ```json
 "statusLine": { "type": "command", "command": "bash \"$HOME/.claude/statusline.sh\"" }
 ```
+
+### Compatibilidade da statusline
+
+| Plataforma | Credenciais | `date` |
+|---|---|---|
+| macOS | Keychain (`security`) | `date -j` (nativo) |
+| Linux | `secret-tool` (GNOME) ou ficheiro | GNU `date` |
+| WSL | ficheiro `~/.claude/.credentials.json` | GNU `date` |
+| Git Bash (Windows) | Windows Credential Manager (PowerShell) ou ficheiro | GNU `date` via MSYS |
+
+Em qualquer plataforma, se já fizeste `claude login`, as credenciais ficam em
+`~/.claude/.credentials.json` e a statusline lê-as automaticamente.
+
+### Windows: configurar o Claude Code para usar o `bash` da statusline
+
+No Windows, o Claude Code precisa de saber onde está o `bash`. Há duas opções:
+
+**Opção A — WSL (recomendado):** Corre o Claude Code dentro do terminal WSL. A statusline
+funciona nativamente sem configuração extra.
+
+**Opção B — Git Bash / MSYS:** A `settings.json` já tem `bash "$HOME/.claude/statusline.sh"`.
+O Claude Code no Windows usa o `bash` do PATH — garante que o Git Bash está no PATH (normalmente
+está se instalaste o Git for Windows).
 
 ---
 
@@ -139,13 +164,13 @@ Dois servidores locais. Instala-os com `claude mcp add` (ou cola o bloco do
 `mcp-servers.json` em `~/.claude.json` na chave `mcpServers`).
 
 **Magic (21st.dev)** — gera componentes de UI. Precisas da **tua própria** API key
-(grátis em https://21st.dev). A chave do Lucas **não** vai no pacote.
+(grátis em https://21st.dev).
 ```bash
 claude mcp add magic -- npx -y @21st-dev/magic@latest
 # depois mete a env API_KEY=<a_tua_chave> (em ~/.claude.json no server "magic")
 ```
 
-**Apple Calendar** — lê/cria eventos no Calendário do macOS.
+**Apple Calendar** — lê/cria eventos no Calendário do macOS (macOS apenas).
 ```bash
 claude mcp add apple-calendar -- npx apple-calendar-mcp
 ```

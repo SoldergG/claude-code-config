@@ -22,6 +22,15 @@ reset='\033[0m'
 
 sep=" ${dim}│${reset} "
 
+# ── Platform detection ───────────────────────────────────
+_os=""
+case "$(uname -s 2>/dev/null)" in
+    Darwin)  _os="mac" ;;
+    Linux)   _os="linux" ;;
+    MINGW*|MSYS*|CYGWIN*) _os="win" ;;
+    *)       _os="linux" ;;
+esac
+
 # ── Helpers ─────────────────────────────────────────────
 format_tokens() {
     local num=$1
@@ -64,6 +73,7 @@ build_bar() {
 iso_to_epoch() {
     local iso_str="$1"
 
+    # GNU/Linux date (also works in WSL and Git Bash)
     local epoch
     epoch=$(date -d "${iso_str}" +%s 2>/dev/null)
     if [ -n "$epoch" ]; then
@@ -71,6 +81,7 @@ iso_to_epoch() {
         return 0
     fi
 
+    # macOS fallback
     local stripped="${iso_str%%.*}"
     stripped="${stripped%%Z}"
     stripped="${stripped%%+*}"
@@ -102,16 +113,18 @@ format_reset_time() {
     local result=""
     case "$style" in
         time)
-            result=$(date -j -r "$epoch" +"%l:%M%p" 2>/dev/null | sed 's/^ //; s/\.//g' | tr '[:upper:]' '[:lower:]')
-            [ -z "$result" ] && result=$(date -d "@$epoch" +"%l:%M%P" 2>/dev/null | sed 's/^ //; s/\.//g')
+            # GNU/Linux + WSL + Git Bash first
+            result=$(date -d "@$epoch" +"%l:%M%P" 2>/dev/null | sed 's/^ //; s/\.//g')
+            # macOS fallback
+            [ -z "$result" ] && result=$(date -j -r "$epoch" +"%l:%M%p" 2>/dev/null | sed 's/^ //; s/\.//g' | tr '[:upper:]' '[:lower:]')
             ;;
         datetime)
-            result=$(date -j -r "$epoch" +"%b %-d, %l:%M%p" 2>/dev/null | sed 's/  / /g; s/^ //; s/\.//g' | tr '[:upper:]' '[:lower:]')
-            [ -z "$result" ] && result=$(date -d "@$epoch" +"%b %-d, %l:%M%P" 2>/dev/null | sed 's/  / /g; s/^ //; s/\.//g')
+            result=$(date -d "@$epoch" +"%b %-d, %l:%M%P" 2>/dev/null | sed 's/  / /g; s/^ //; s/\.//g')
+            [ -z "$result" ] && result=$(date -j -r "$epoch" +"%b %-d, %l:%M%p" 2>/dev/null | sed 's/  / /g; s/^ //; s/\.//g' | tr '[:upper:]' '[:lower:]')
             ;;
         *)
-            result=$(date -j -r "$epoch" +"%b %-d" 2>/dev/null | tr '[:upper:]' '[:lower:]')
-            [ -z "$result" ] && result=$(date -d "@$epoch" +"%b %-d" 2>/dev/null)
+            result=$(date -d "@$epoch" +"%b %-d" 2>/dev/null)
+            [ -z "$result" ] && result=$(date -j -r "$epoch" +"%b %-d" 2>/dev/null | tr '[:upper:]' '[:lower:]')
             ;;
     esac
     printf "%s" "$result"
@@ -199,11 +212,13 @@ esac
 get_oauth_token() {
     local token=""
 
+    # 1) Env var override (all platforms)
     if [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
         echo "$CLAUDE_CODE_OAUTH_TOKEN"
         return 0
     fi
 
+    # 2) macOS Keychain
     if command -v security >/dev/null 2>&1; then
         local blob
         blob=$(security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null)
@@ -216,6 +231,28 @@ get_oauth_token() {
         fi
     fi
 
+    # 3) Windows Credential Manager (Git Bash / MSYS on native Windows)
+    if [ "$_os" = "win" ] && command -v powershell.exe >/dev/null 2>&1; then
+        local blob
+        blob=$(powershell.exe -NoProfile -NonInteractive -Command '
+            try {
+                Add-Type -AssemblyName System.Security
+                $creds = [Windows.Security.Credentials.PasswordVault,Windows.Security.Credentials,ContentType=WindowsRuntime]::new()
+                $item = $creds.FindAllByResource("Claude Code-credentials")[0]
+                $item.RetrievePassword()
+                Write-Output $item.Password
+            } catch {}
+        ' 2>/dev/null | tr -d '\r\n')
+        if [ -n "$blob" ]; then
+            token=$(echo "$blob" | jq -r '.claudeAiOauth.accessToken // empty' 2>/dev/null)
+            if [ -n "$token" ] && [ "$token" != "null" ]; then
+                echo "$token"
+                return 0
+            fi
+        fi
+    fi
+
+    # 4) Credentials file (cross-platform: macOS, Linux, WSL, Git Bash)
     local creds_file="${HOME}/.claude/.credentials.json"
     if [ -f "$creds_file" ]; then
         token=$(jq -r '.claudeAiOauth.accessToken // empty' "$creds_file" 2>/dev/null)
@@ -225,6 +262,7 @@ get_oauth_token() {
         fi
     fi
 
+    # 5) Linux GNOME keyring (secret-tool)
     if command -v secret-tool >/dev/null 2>&1; then
         local blob
         blob=$(timeout 2 secret-tool lookup service "Claude Code-credentials" 2>/dev/null)
@@ -241,9 +279,11 @@ get_oauth_token() {
 }
 
 # ── Fetch usage data (cached) ──────────────────────────
-cache_file="/tmp/claude/statusline-usage-cache.json"
+cache_dir="/tmp/claude"
+# On Windows (Git Bash), /tmp maps to the MSYS temp dir — still writable
+mkdir -p "$cache_dir" 2>/dev/null || cache_dir="${TMPDIR:-/tmp}"
+cache_file="$cache_dir/statusline-usage-cache.json"
 cache_max_age=60
-mkdir -p /tmp/claude
 
 needs_refresh=true
 usage_data=""
@@ -310,10 +350,9 @@ if [ -n "$usage_data" ] && echo "$usage_data" | jq -e . >/dev/null 2>&1; then
         extra_bar=$(build_bar "$extra_pct" "$bar_width")
         extra_pct_color=$(color_for_pct "$extra_pct")
 
-        extra_reset=$(date -v+1m -v1d +"%b %-d" 2>/dev/null | tr '[:upper:]' '[:lower:]')
-        if [ -z "$extra_reset" ]; then
-            extra_reset=$(date -d "$(date +%Y-%m-01) +1 month" +"%b %-d" 2>/dev/null | tr '[:upper:]' '[:lower:]')
-        fi
+        # GNU/Linux + WSL + Git Bash first, macOS fallback
+        extra_reset=$(date -d "$(date +%Y-%m-01) +1 month" +"%b %-d" 2>/dev/null | tr '[:upper:]' '[:lower:]')
+        [ -z "$extra_reset" ] && extra_reset=$(date -v+1m -v1d +"%b %-d" 2>/dev/null | tr '[:upper:]' '[:lower:]')
 
         extra_col="${white}extra${reset}   ${extra_bar} ${extra_pct_color}\$${extra_used}${dim}/${reset}${white}\$${extra_limit}${reset}"
         extra_reset_line="${dim}resets ${reset}${white}${extra_reset}${reset}"
