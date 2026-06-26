@@ -1,0 +1,21 @@
+{
+  "statusLine": {
+    "type": "command",
+    "command": "bash \"$HOME/.claude/statusline.sh\""
+  },
+  "enabledPlugins": {
+    "swift-lsp@claude-plugins-official": true,
+    "frontend-design@claude-plugins-official": true,
+    "vercel@claude-plugins-official": true
+  },
+  "effortLevel": "high",
+  "tui": "fullscreen",
+  "voice": {
+    "enabled": false
+  },
+  "voiceEnabled": false,
+  "remoteControlAtStartup": true,
+  "inputNeededNotifEnabled": true,
+  "agentPushNotifEnabled": true,
+  "model": "opus"
+}

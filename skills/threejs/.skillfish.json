@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "name": "threejs",
+  "owner": "secondsky",
+  "repo": "claude-skills",
+  "path": "plugins/threejs/skills/threejs",
+  "branch": "main",
+  "sha": "674df31876eafe4bf217a627c806a1b93c45478a",
+  "source": "manual"
+}

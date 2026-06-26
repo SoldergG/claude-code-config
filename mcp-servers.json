@@ -1,0 +1,19 @@
+{
+  "_comment": "Servidores MCP locais (stdio). Vê o README para os passos de instalacao. Substitui o API_KEY do magic pela tua propria chave de https://21st.dev (a chave do Lucas NAO esta incluida).",
+  "mcpServers": {
+    "magic": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@21st-dev/magic@latest"],
+      "env": {
+        "API_KEY": "PoeAquiATuaChaveDo21stDev"
+      }
+    },
+    "apple-calendar": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["apple-calendar-mcp"],
+      "env": {}
+    }
+  }
+}

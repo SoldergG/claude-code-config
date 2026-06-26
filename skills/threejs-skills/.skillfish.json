@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "name": "threejs-skills",
+  "owner": "sickn33",
+  "repo": "antigravity-awesome-skills",
+  "path": "plugins/antigravity-awesome-skills-claude/skills/threejs-skills",
+  "branch": "main",
+  "sha": "c75e4732eb49df02c48201a5b0d662739ca2da40",
+  "source": "manual"
+}
